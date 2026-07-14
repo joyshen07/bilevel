@@ -11,6 +11,7 @@ def algo1(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
           stepsize_inner, stepsize_bi, stepsize_dual, slater,
           initial_inner, initial_bi, initial_dual, n_iter, pre_iter=0, start_ave=-1):
 
+    # initialization
     z0 = initial_inner
     x0 = initial_bi
     y0 = initial_dual
@@ -20,6 +21,7 @@ def algo1(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
     # eta = stepsize_inner
     # u0 = z0
 
+    # mirror descent: record the *best* solution over the horizon
     min_z = z0
     fz0 = inner_obj(z0)
 
@@ -27,9 +29,11 @@ def algo1(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
     #     start_ave = n_iter
     # w0 = 0*x0
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
+    # # mirror descent: first run a few iterations before generating the sequence needed
     # for i in range(pre_iter):
     #     z1 = proj(z0 - stepsize_inner * inner_obj_grad(z0))
     #     if inner_obj(z1) > inner_obj(z0):
@@ -43,15 +47,19 @@ def algo1(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
         # u1 = proj( z0 - eta * inner_obj_grad(z0) )
         # z1 = (1-gamma) * u1 + gamma * u0
 
+        # mirror descent: generate the pre-defined sequence
         z1 = proj( z0 - stepsize_inner * inner_obj_grad(z0) )
         fz1 = inner_obj(z1)
         if fz1 < fz0:
             min_z = z1
+
+        # Algorithm 1: update rules
         dx = inner_obj_grad(x0)
         x1 = proj( x0 - stepsize_bi * ( outer_obj_grad(x0) + y0 * dx ) )
         y1 = max( 0, y0 + stepsize_dual *
                   ( inner_obj(x0) - inner_obj(min_z) - slater + np.dot(dx, x1-x0) ) )
 
+        # update the variables
         z0 = z1
         x0 = x1
         y0 = y1
@@ -88,11 +96,13 @@ def algo2(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
           stepsize_inner, stepsize_bi, slater,
           initial_inner, initial_bi, initial_dual, n_iter, pre_iter=0, start_ave=-1):
 
+    # initialization
     z0 = initial_inner
     x0 = initial_bi
     y0 = initial_dual
     g0 = -slater
 
+    # mirror descent: record the *best* solution over the horizon
     min_z = z0
     fz0 = inner_obj(z0)
 
@@ -100,6 +110,7 @@ def algo2(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
     #     start_ave = n_iter
     # w0 = 0*x0
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
@@ -110,14 +121,19 @@ def algo2(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
     #     z0 = z1
 
     for i in range(n_iter):
+
+        # mirror descent: generate the pre-defined sequence
         z1 = proj(z0 - stepsize_inner * inner_obj_grad(z0))
         fz1 = inner_obj(z1)
         if fz1 < fz0:
             min_z = z1
+
+        # Algorithm 2: update rules
         x1 = proj(x0 - stepsize_bi * (outer_obj_grad(x0) + y0 * inner_obj_grad(x0)))
         g1 = inner_obj(x1) - inner_obj(min_z) - slater
         y1 = max(0, y0 + 2*g1 - g0)
 
+        # update the variables
         z0 = z1
         x0 = x1
         y0 = y1
@@ -142,19 +158,24 @@ def algo1bt(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
             slater,
             initial_inner, initial_bi, initial_dual, n_iter):
 
+    # iterate initialization
     z0 = initial_inner
     x0 = initial_bi
     y0 = initial_dual
 
+    # backtracking parameter initialization
     bt = 1.1
     sy = 1
     lz, ez = 1 / 100, 1 + 1 / 32
     lx, ex = 1, 1 + 1 / 32
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
     for i in range(n_iter):
+
+        # backtracking mirror descent: generate the pre-defined sequence
         dz = inner_obj_grad(z0)
         while True:
             z1 = proj(z0 - dz / lz)
@@ -162,6 +183,8 @@ def algo1bt(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
                     <= np.vdot(dz, z1 - z0) + lz / 2 * np.vdot(z1 - z0, z1 - z0):
                 break
             lz *= ez
+
+        # backtracking Algorithm 1: primal update
         dg = inner_obj_grad(x0)
         dx = outer_obj_grad(x0) + y0 * dg
         while True:
@@ -172,8 +195,11 @@ def algo1bt(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
                 break
             lx *= ex
         x1 = proj(x0 - dx / lx / bt)
+        # backtracking Algorithm 1: dual update
         dy = inner_obj(x0) - inner_obj(z1) - slater + np.vdot(dg, x1 - x0)
         y1 = np.maximum(0, y0 + sy * dy)
+
+        # update the variables
         z0 = z1
         x0 = x1
         y0 = y1
@@ -189,19 +215,24 @@ def algo2bt(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
             slater, h,
             initial_inner, initial_bi, initial_dual, n_iter):
 
+    # iterate initialization
     z0 = initial_inner
     x0 = initial_bi
     y0 = initial_dual
     g0 = -slater
 
+    # parameter initialization
     bt = 1.1
     lz, ez = 1 / 100, 1 + 1 / 32
     lx, ex = 1, 1 + 1 / 32
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
     for i in range(n_iter):
+
+        # backtracking mirror descent: generate the pre-defined sequence
         dz = inner_obj_grad(z0)
         while True:
             z1 = proj(z0 - dz / lz)
@@ -209,6 +240,8 @@ def algo2bt(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
                     <= np.vdot(dz, z1 - z0) + lz / 2 * np.vdot(z1 - z0, z1 - z0):
                 break
             lz *= ez
+
+        # backtracking Algorithm 2: primal update
         dx = outer_obj_grad(x0) + y0 * inner_obj_grad(x0)
         while True:
             x1 = proj(x0 - dx / lx)
@@ -217,9 +250,11 @@ def algo2bt(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
                 break
             lx *= ex
         x1 = proj(x0 - dx / lx / bt)
+        # backtracking Algorithm 1: dual update
         g1 = inner_obj(x1) - inner_obj(z1) - slater
         y1 = max(0, y0 + 2*g1 - g0)
 
+        # update the variables
         z0 = z1
         x0 = x1
         y0 = y1
@@ -236,8 +271,10 @@ def solodov(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
             alpha, theta, eta,
             initial, n_iter):
 
+    # initialization
     x0 = initial
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
@@ -272,8 +309,10 @@ def BiGSAM(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
            t, s, alpha,
            initial, n_iter):
 
+    # initialization
     x0 = initial
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
@@ -294,13 +333,16 @@ def IRIG(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
          gamma, lbd, r, eps,
          initial, n_iter):
 
+    # iterate initialization
     x0 = initial
     w0 = x0
     s0 = gamma ** r
 
+    # parameter initialization
     gamma1 = gamma
     lbd1 = lbd
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
@@ -326,8 +368,10 @@ def IRIG(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
 def helou(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
           initial, n_iter):
 
+    # iterate initialization
     x0 = initial
 
+    # parameter initialization
     lmd = 0.05
     mu = 1
     y1 = x0 - lmd * inner_obj_grad(x0)
@@ -335,6 +379,7 @@ def helou(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
     x1 = proj(z1)
     mu = np.linalg.norm(x0-y1) / np.linalg.norm(y1-z1) * 0.01
 
+    # record the data of interest
     iters_inner = [inner_obj(x0)]
     iters_outer = [outer_obj(x0)]
 
@@ -359,11 +404,8 @@ def helou(inner_obj, inner_obj_grad, outer_obj, outer_obj_grad, proj,
 def experiment(instance, bounded, n_iter):
 
     # problem setup
-    # instance = regtools.phillips
-    # bounded = False
-    # n_iter = 10000
-    n = 1000
-    rad = 20
+    n = 1000                # dimension
+    rad = 20                # radius of bounded domain
     # if instance.__name__ == 'foxgood':
     #     h = .66
     #     lip = 1.5
@@ -374,12 +416,14 @@ def experiment(instance, bounded, n_iter):
     #     h = 35
     #     lip = .03
 
+    # inner objective
     a, b, _ = instance(n)
     np.random.seed(1)
     b = np.reshape(b, -1) + np.random.randn(n) * 1e-2
     def sq_resid(x): return .5 * np.dot(a @ x - b, a @ x - b)
     def sq_resid_grad(x): return a.T @ (a @ x - b)
 
+    # outer objective
     q = regtools.get_l(n+1, 1)
     q = q @ q.T + np.eye(n)
     def quad_form(x): return .5 * (x @ q @ x)
@@ -393,27 +437,31 @@ def experiment(instance, bounded, n_iter):
 
     def proj_nonneg(x): return np.maximum(x, 0)
 
+    # projection
     if bounded:
         proj = proj_l2ball
     else:
         proj = proj_nonneg
 
-    # solving by gurobipy
-    prob_inner = gp.Model()
-    if bounded:
-        x = prob_inner.addMVar(n, lb=-gp.GRB.INFINITY)
-        y = prob_inner.addMVar(n, lb=-gp.GRB.INFINITY)
-        prob_inner.setObjective(y @ y * .5, gp.GRB.MINIMIZE)
-        prob_inner.addConstr(a @ x - b == y)
-        prob_inner.addConstr(x @ x <= rad**2)
-    else:
-        x = prob_inner.addMVar(n)
-        y = prob_inner.addMVar(n, lb=-gp.GRB.INFINITY)
-        prob_inner.setObjective(y @ y * .5, gp.GRB.MINIMIZE)
-        prob_inner.addConstr(a @ x - b == y)
-    prob_inner.update()
-    prob_inner.optimize()
-    opt_inner = prob_inner.objVal
+    # # solving the inner problem by gurobipy
+    # print('Solving by Gurobi to get optimal inner value')
+    # prob_inner = gp.Model()
+    # if bounded:
+    #     x = prob_inner.addMVar(n, lb=-gp.GRB.INFINITY)
+    #     y = prob_inner.addMVar(n, lb=-gp.GRB.INFINITY)
+    #     prob_inner.setObjective(y @ y * .5, gp.GRB.MINIMIZE)
+    #     prob_inner.addConstr(a @ x - b == y)
+    #     prob_inner.addConstr(x @ x <= rad**2)
+    # else:
+    #     x = prob_inner.addMVar(n)
+    #     y = prob_inner.addMVar(n, lb=-gp.GRB.INFINITY)
+    #     prob_inner.setObjective(y @ y * .5, gp.GRB.MINIMIZE)
+    #     prob_inner.addConstr(a @ x - b == y)
+    # prob_inner.update()
+    # prob_inner.optimize()
+    # opt_inner = prob_inner.objVal
+    # print('')
+    opt_inner = 0
 
     # theoretical stepsize gamma for algorithm 2
     norm_q = np.linalg.norm(q, 2)
@@ -551,14 +599,16 @@ def experiment(instance, bounded, n_iter):
         str_bdd = 'bounded_'
     else:
         str_bdd = 'unbounded_'
+    # running time of all algorithms
     np.savetxt('output/' + str_bdd + instance.__name__ + '_time.csv', np.asarray([time_list]), header=','.join(name_list))
+    # data of interest over the iterations for each algorithm
     for iters_inner, iters_outer, name in zip(iters_inner_list, iters_outer_list, name_list):
         tab = [[i+1, x-opt_inner] for i, x in enumerate(iters_inner)]
         np.savetxt('output/' + str_bdd + instance.__name__ + '_inner_' + name + '.csv', np.asarray(tab))
         tab = [[i+1, x] for i, x in enumerate(iters_outer)]
         np.savetxt('output/' + str_bdd + instance.__name__ + '_outer_' + name + '.csv', np.asarray(tab))
 
-    # plots
+    # plots for inner objective
     plt.rc('text', usetex=True)
     if bounded:
         plt.loglog(np.arange(1, n_iter+2), np.array(iters_inner_1) - opt_inner, label='Algo1',  linestyle='-', color='C0')
@@ -576,6 +626,7 @@ def experiment(instance, bounded, n_iter):
     plt.legend()
     plt.show()
 
+    # plots for outer objectives
     if bounded:
         plt.plot(np.arange(1, n_iter+2), np.array(iters_outer_1), label='Algo1',  linestyle='-', color='C0')
     plt.plot(np.arange(1, n_iter+2), np.array(iters_outer_1bt), label='Algo1(backtracking)', linestyle='dashed', color='C0')
@@ -600,10 +651,7 @@ def experiment(instance, bounded, n_iter):
 
 def subsampling_inner(instance, bounded, n_sample=400):
     # subsampling iterates for plots
-    # instance = regtools.phillips
-    # bounded = True
     str_bdd = 'bounded_' if bounded else 'unbounded_'
-    # n_sample = 400
     name_list = ['algo1bt', 'algo2bt', 'bigsam', 'irig', 'solodov', 'helou']
     if bounded:
         name_list = ['algo1', 'algo2'] + name_list
@@ -618,10 +666,7 @@ def subsampling_inner(instance, bounded, n_sample=400):
 
 
 def subsampling_outer(instance, bounded, n_sample=400):
-    # instance = regtools.phillips
-    # bounded = False
     str_bdd = 'bounded_' if bounded else 'unbounded_'
-    # n_sample = 400
     name_list = ['algo1bt', 'algo2bt', 'bigsam', 'irig', 'solodov', 'helou']
     if bounded:
         name_list = ['algo1', 'algo2'] + name_list
@@ -638,8 +683,8 @@ if __name__ == '__main__':
     n_iter = 10000
     timing = []
     os.makedirs('output', exist_ok=True)
-    for bounded in [True, False]:
-        for instance in [regtools.foxgood, regtools.baart, regtools.phillips]:
+    for bounded in [True]:  #, False]:
+        for instance in [regtools.foxgood]:  #, regtools.baart, regtools.phillips]:
             print('--------------------------------------------')
             print('Solving ' + instance.__name__ + ', ' + ('bounded' if bounded else 'unbounded') + ' case: \n')
             timing.append(experiment(instance, bounded, n_iter))
